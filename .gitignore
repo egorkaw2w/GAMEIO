@@ -1,0 +1,13 @@
+# Секреты
+.env
+.env.local
+.env.*.local
+
+# Логи
+*.log
+npm-debug.log*
+
+# Сборки
+dist/
+build/
+node_modules/

@@ -1,0 +1,60 @@
+openapi: 3.0.0
+info:
+  title: Game Store API
+  version: 1.0.0
+  description: API для магазина игровых аккаунтов и ключей
+paths:
+  /auth/login:
+    post:
+      summary: Логин пользователя
+      parameters:
+        - name: email
+          in: body
+          required: true
+          schema:
+            type: string
+        - name: password
+          in: body
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: JWT токен
+        '401':
+          description: Invalid credentials
+  /products/list:
+    get:
+      summary: Список продуктов (игры, аккаунты, ключи)
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Array of products
+  /orders/create:
+    post:
+      summary: Создать заказ
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: items
+          in: body
+          required: true
+          schema:
+            type: array
+      responses:
+        '201':
+          description: Order created
+        '400':
+          description: Invalid stock
+        '401':
+          description: Unauthorized
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
