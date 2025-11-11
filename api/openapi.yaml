@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: GameIO API
+  version: 1.0.0
+  description: API для игрового магазина
+servers:
+  - url: http://localhost:3000
+paths:
+  /:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: API is running
+  /api/auth/register:
+    post:
+      summary: Регистрация
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Успешно
+  /api/auth/login:
+    post:
+      summary: Логин
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Токен
+  /api/orders:
+    post:
+      summary: Создать заказ
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      game_id: { type: integer }
+                      platform_id: { type: integer }
+      responses:
+        '200':
+          description: Заказ создан
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

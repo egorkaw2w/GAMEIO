@@ -13,6 +13,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db:/docker-entrypoint-initdb.d
+      # - ./backups:/backups  ← УБРАТЬ, если не нужен бэкап
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d game_store"]
       interval: 10s
@@ -24,7 +25,7 @@ services:
     container_name: gameio-api
     restart: always
     ports:
-      - "3000:3000"  # ← API будет на 3000
+      - "3000:3000"
     env_file:
       - .env
     environment:
