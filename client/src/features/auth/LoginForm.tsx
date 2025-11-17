@@ -43,8 +43,13 @@ const LoginForm = () => {
       return;
     }
     try {
-      await login(values);
-      navigate('/');
+      const userData = await login(values);
+      // Редирект на админ-панель для менеджеров и админов
+      if (userData && (userData.role === 'admin' || userData.role === 'manager')) {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch {
       // error already handled in hook
     }

@@ -10,11 +10,14 @@ export interface Product {
     accounts: number;
     keys: number;
   };
+  min_account_price?: number;
+  min_key_price?: number;
   inStock?: boolean;
 }
 
 export interface CartItem extends Product {
   quantity: number;
+  itemType: 'key' | 'account'; // Тип товара: ключ или аккаунт
 }
 
 export interface User {

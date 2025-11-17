@@ -5,14 +5,9 @@ import type { Product } from '../../types';
 
 interface Props {
     product: Product;
-    onAddToCart: () => void;
 }
 
-const ProductCard = ({ product, onAddToCart }: Props) => {
-    const isOutOfStock = product.inStock === false || (product.availability
-        ? product.availability.accounts + product.availability.keys === 0
-        : false);
-
+const ProductCard = ({ product }: Props) => {
     return (
         <Card>
             <CardMedia
@@ -41,19 +36,15 @@ const ProductCard = ({ product, onAddToCart }: Props) => {
                         </Tooltip>
                     </Box>
                 )}
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                    <Button size="small" component={Link} to={`/product/${product.id}`} fullWidth>
-                        Подробнее
-                    </Button>
+                <Box sx={{ mt: 2 }}>
                     <Button
                         size="small"
+                        component={Link}
+                        to={`/product/${product.id}`}
                         variant="contained"
-                        onClick={onAddToCart}
                         fullWidth
-                        data-hotkey-add-to-cart
-                        disabled={isOutOfStock}
                     >
-                        {isOutOfStock ? 'Нет в наличии' : 'В корзину'}
+                        Подробнее
                     </Button>
                 </Box>
             </CardContent>

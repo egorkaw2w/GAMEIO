@@ -17,51 +17,28 @@ import {
     ShoppingCart,
     Delete,
     ArrowBack,
-    CheckCircle,
+    VpnKey,
+    AccountCircle,
 } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
 import { useState } from 'react';
-import api from '../lib/api';
 
 const CartPage = () => {
     const navigate = useNavigate();
     const { cart, removeFromCart, clearCart, user } = useStore();
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState(false);
 
     const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-    const handleCheckout = async () => {
+    const handleCheckout = () => {
         if (!user) {
             navigate('/login');
             return;
         }
 
-        setLoading(true);
-        setError(null);
-
-        try {
-            const items = cart.map(item => ({
-                game_id: item.id,
-                platform_id: 1, // TODO: добавить выбор платформы
-            }));
-
-            await api.post('/orders', { items });
-            setSuccess(true);
-            clearCart();
-
-            // Перенаправляем на страницу заказов через 2 секунды
-            setTimeout(() => {
-                navigate('/orders');
-            }, 2000);
-        } catch (err: any) {
-            console.error('Error creating order:', err);
-            setError(err.response?.data?.error || 'Не удалось оформить заказ');
-        } finally {
-            setLoading(false);
-        }
+        // Переходим на страницу оформления заказа
+        navigate('/checkout');
     };
 
     if (!user) {
@@ -78,25 +55,6 @@ const CartPage = () => {
                     <Button variant="contained" size="large" component={RouterLink} to="/login">
                         Авторизоваться
                     </Button>
-                </Paper>
-            </Container>
-        );
-    }
-
-    if (success) {
-        return (
-            <Container maxWidth="md" sx={{ py: 6 }}>
-                <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3 }}>
-                    <CheckCircle sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-                    <Typography variant="h4" gutterBottom>
-                        Заказ успешно оформлен!
-                    </Typography>
-                    <Typography color="text.secondary" sx={{ mb: 3 }}>
-                        Спасибо за покупку! Ваш заказ обрабатывается.
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Перенаправление на страницу заказов...
-                    </Typography>
                 </Paper>
             </Container>
         );
@@ -159,7 +117,7 @@ const CartPage = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {cart.map((item) => (
                             <Card
-                                key={item.id}
+                                key={`${item.id}-${item.itemType}`}
                                 sx={{
                                     display: 'flex',
                                     borderRadius: 3,
@@ -183,18 +141,26 @@ const CartPage = () => {
                                             </Typography>
                                             <IconButton
                                                 color="error"
-                                                onClick={() => removeFromCart(item.id)}
+                                                onClick={() => removeFromCart(item.id, item.itemType)}
                                                 size="small"
                                             >
                                                 <Delete />
                                             </IconButton>
                                         </Box>
-                                        <Chip
-                                            label={item.platform}
-                                            size="small"
-                                            color="primary"
-                                            sx={{ mb: 2 }}
-                                        />
+                                        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                                            <Chip
+                                                label={item.platform}
+                                                size="small"
+                                                color="primary"
+                                            />
+                                            <Chip
+                                                icon={item.itemType === 'key' ? <VpnKey /> : <AccountCircle />}
+                                                label={item.itemType === 'key' ? 'Ключ' : 'Аккаунт'}
+                                                size="small"
+                                                color={item.itemType === 'key' ? 'secondary' : 'success'}
+                                                variant="outlined"
+                                            />
+                                        </Box>
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <Typography variant="body2" color="text.secondary">
                                                 Количество: {item.quantity}
@@ -264,10 +230,10 @@ const CartPage = () => {
                                 size="large"
                                 fullWidth
                                 onClick={handleCheckout}
-                                disabled={loading || cart.length === 0}
+                                disabled={cart.length === 0}
                                 sx={{ mb: 2 }}
                             >
-                                {loading ? 'Оформление...' : 'Оформить заказ'}
+                                Перейти к оплате
                             </Button>
 
                             <Typography variant="caption" color="text.secondary" align="center" display="block">

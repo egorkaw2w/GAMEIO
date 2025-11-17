@@ -25,9 +25,12 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 const HomePage = () => {
     const { products, loading } = useProducts();
     const { addToCart } = useStore();
+    const user = useStore((state) => state.user);
 
-    // Показываем первые 6 игр как популярные
-    const featuredProducts = products.slice(0, 6);
+    // Показываем случайные 6 игр как популярные
+    const featuredProducts = [...products]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 6);
 
     return (
         <Fade in timeout={500}>
@@ -65,16 +68,18 @@ const HomePage = () => {
                         >
                             Перейти в каталог
                         </Button>
-                        <Button
-                            variant="outlined"
-                            size="large"
-                            color="inherit"
-                            component={Link}
-                            to="/register"
-                            sx={{ borderColor: 'common.white', color: 'common.white', px: 5 }}
-                        >
-                            Регистрация
-                        </Button>
+                        {!user && (
+                            <Button
+                                variant="outlined"
+                                size="large"
+                                color="inherit"
+                                component={Link}
+                                to="/register"
+                                sx={{ borderColor: 'common.white', color: 'common.white', px: 5 }}
+                            >
+                                Регистрация
+                            </Button>
+                        )}
                     </Box>
                 </Paper>
 
@@ -213,7 +218,7 @@ const HomePage = () => {
                                             <Button
                                                 variant="contained"
                                                 size="small"
-                                                onClick={() => addToCart({ ...product, quantity: 1 })}
+                                                onClick={() => addToCart({ ...product, quantity: 1, itemType: 'key' })}
                                                 disabled={!product.inStock}
                                             >
                                                 {product.inStock ? 'В корзину' : 'Нет в наличии'}
@@ -245,31 +250,33 @@ const HomePage = () => {
                     </Box>
                 ) : null}
 
-                {/* CTA Section */}
-                <Paper
-                    variant="outlined"
-                    sx={{
-                        p: { xs: 3, md: 4 },
-                        borderRadius: 3,
-                        display: 'flex',
-                        flexDirection: { xs: 'column', md: 'row' },
-                        alignItems: 'center',
-                        gap: 3,
-                        textAlign: { xs: 'center', md: 'left' },
-                    }}
-                >
-                    <Box sx={{ flexGrow: 1 }}>
-                        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-                            Получайте подборки игр и эксклюзивные скидки
-                        </Typography>
-                        <Typography color="text.secondary" variant="body1">
-                            Зарегистрируйтесь и будьте в курсе всех новинок и специальных предложений
-                        </Typography>
-                    </Box>
-                    <Button variant="contained" size="large" component={Link} to="/register" sx={{ px: 5 }}>
-                        Создать аккаунт
-                    </Button>
-                </Paper>
+                {/* CTA Section - только для неавторизованных */}
+                {!user && (
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            p: { xs: 3, md: 4 },
+                            borderRadius: 3,
+                            display: 'flex',
+                            flexDirection: { xs: 'column', md: 'row' },
+                            alignItems: 'center',
+                            gap: 3,
+                            textAlign: { xs: 'center', md: 'left' },
+                        }}
+                    >
+                        <Box sx={{ flexGrow: 1 }}>
+                            <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+                                Получайте подборки игр и эксклюзивные скидки
+                            </Typography>
+                            <Typography color="text.secondary" variant="body1">
+                                Зарегистрируйтесь и будьте в курсе всех новинок и специальных предложений
+                            </Typography>
+                        </Box>
+                        <Button variant="contained" size="large" component={Link} to="/register" sx={{ px: 5 }}>
+                            Создать аккаунт
+                        </Button>
+                    </Paper>
+                )}
             </Container>
         </Fade>
     );

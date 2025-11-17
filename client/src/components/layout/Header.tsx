@@ -132,11 +132,6 @@ const Header = () => {
                             <MenuItem onClick={() => handleNavigate('/catalog')}>
                                 <Typography textAlign="center">Каталог</Typography>
                             </MenuItem>
-                            {user && (
-                                <MenuItem onClick={() => handleNavigate('/orders')}>
-                                    <Typography textAlign="center">Мои заказы</Typography>
-                                </MenuItem>
-                            )}
                         </Menu>
                     </Box>
 
@@ -161,82 +156,58 @@ const Header = () => {
 
                     {/* Desktop menu */}
                     <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' }, gap: 1 }}>
-                        <Button
-                            component={RouterLink}
-                            to="/"
-                            sx={{
-                                color: 'white',
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                },
-                            }}
-                        >
-                            Главная
-                        </Button>
-                        <Button
-                            component={RouterLink}
-                            to="/catalog"
-                            sx={{
-                                color: 'white',
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                },
-                            }}
-                        >
-                            Каталог
-                        </Button>
-                        {user && (
-                            <Button
-                                component={RouterLink}
-                                to="/orders"
-                                sx={{
-                                    color: 'white',
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                    },
-                                }}
-                            >
-                                Мои заказы
-                            </Button>
-                        )}
-                    </Box>
-
-                    {/* Cart icon */}
-                    <IconButton
-                        component={RouterLink}
-                        to="/cart"
-                        size="large"
-                        color="inherit"
-                        sx={{
-                            '&:hover': {
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                    >
-                        <Badge badgeContent={cartCount} color="secondary">
-                            <ShoppingCart />
-                        </Badge>
-                    </IconButton>
-
-                    {/* User menu */}
-                    {user ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {(user.role === 'admin' || user.role === 'manager') && (
-                                <IconButton
+                        {(!user || (user.role !== 'admin' && user.role !== 'manager')) && (
+                            <>
+                                <Button
                                     component={RouterLink}
-                                    to="/admin"
-                                    size="large"
-                                    color="inherit"
+                                    to="/"
                                     sx={{
+                                        color: 'white',
                                         '&:hover': {
                                             backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                         },
                                     }}
                                 >
-                                    <AdminPanelSettings />
-                                </IconButton>
-                            )}
+                                    Главная
+                                </Button>
+                                <Button
+                                    component={RouterLink}
+                                    to="/catalog"
+                                    sx={{
+                                        color: 'white',
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                        },
+                                    }}
+                                >
+                                    Каталог
+                                </Button>
+                            </>
+                        )}
+                    </Box>
 
+                    {/* Cart icon - только для обычных пользователей */}
+                    {(!user || (user.role !== 'admin' && user.role !== 'manager')) && (
+                        <IconButton
+                            component={RouterLink}
+                            to="/cart"
+                            size="large"
+                            color="inherit"
+                            sx={{
+                                '&:hover': {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                },
+                            }}
+                        >
+                            <Badge badgeContent={cartCount} color="secondary">
+                                <ShoppingCart />
+                            </Badge>
+                        </IconButton>
+                    )}
+
+                    {/* User menu */}
+                    {user ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
                                 <Avatar
                                     sx={{
@@ -279,18 +250,31 @@ const Header = () => {
                                     </ListItemIcon>
                                     <ListItemText>Профиль</ListItemText>
                                 </MenuItem>
-                                <MenuItem onClick={() => handleNavigate('/orders')}>
-                                    <ListItemIcon>
-                                        <ShoppingBag fontSize="small" />
-                                    </ListItemIcon>
-                                    <ListItemText>Мои заказы</ListItemText>
-                                </MenuItem>
+                                {(user.role !== 'admin' && user.role !== 'manager') && (
+                                    <MenuItem onClick={() => handleNavigate('/orders')}>
+                                        <ListItemIcon>
+                                            <ShoppingBag fontSize="small" />
+                                        </ListItemIcon>
+                                        <ListItemText>Мои заказы</ListItemText>
+                                    </MenuItem>
+                                )}
                                 <MenuItem onClick={() => handleNavigate('/settings')}>
                                     <ListItemIcon>
                                         <Settings fontSize="small" />
                                     </ListItemIcon>
                                     <ListItemText>Настройки</ListItemText>
                                 </MenuItem>
+                                {(user.role === 'admin' || user.role === 'manager') && (
+                                    <>
+                                        <Divider />
+                                        <MenuItem onClick={() => handleNavigate('/admin')}>
+                                            <ListItemIcon>
+                                                <AdminPanelSettings fontSize="small" />
+                                            </ListItemIcon>
+                                            <ListItemText>{user.role === 'admin' ? 'Админ-панель' : 'Панель менеджера'}</ListItemText>
+                                        </MenuItem>
+                                    </>
+                                )}
                                 <Divider />
                                 <MenuItem onClick={handleLogout}>
                                     <ListItemIcon>

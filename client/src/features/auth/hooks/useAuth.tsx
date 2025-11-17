@@ -30,13 +30,25 @@ export const useAuth = () => {
     const storedUser = localStorage.getItem('user');
     const token = localStorage.getItem('token');
     if (!token || !storedUser) return;
-    try {
-      const parsed: User = JSON.parse(storedUser);
-      setUser(parsed);
-    } catch (err) {
-      console.warn('Не удалось восстановить пользователя из localStorage', err);
-      localStorage.removeItem('user');
-    }
+
+    // Проверяем валидность токена при загрузке
+    const verifyToken = async () => {
+      try {
+        // Делаем тестовый запрос для проверки токена
+        await api.get('/users/me');
+        // Токен валидный, восстанавливаем пользователя
+        const parsed: User = JSON.parse(storedUser);
+        setUser(parsed);
+      } catch (err) {
+        // Токен невалидный или истёк, очищаем localStorage
+        console.warn('Токен невалидный, очищаем localStorage');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        setUser(null);
+      }
+    };
+
+    verifyToken();
   }, [setUser]);
 
   const handleAuthSuccess = useCallback(
@@ -60,10 +72,12 @@ export const useAuth = () => {
       setError(null);
       try {
         const { data } = await api.post('/auth/login', values);
-        handleAuthSuccess(data.token, {
+        const userData = {
           ...data.user,
           email: data.user?.email ?? values.email,
-        });
+        };
+        handleAuthSuccess(data.token, userData);
+        return userData;
       } catch (err) {
         setError(extractErrorMessage(err));
         throw err;
