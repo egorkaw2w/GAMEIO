@@ -97,10 +97,10 @@ router.post('/accounts', verifyToken, requireRole(['admin', 'manager']), validat
   const { game_id, login, password, price } = req.body;
 
   try {
-    // Сохраняем пароль как есть
+    // Шифруем пароль с помощью функции БД
     const result = await pool.query(
       `INSERT INTO Accounts (game_id, login, password_encrypted, price, status)
-       VALUES ($1, $2, $3, $4, 'available')
+       VALUES ($1, $2, pgp_sym_encrypt($3, current_setting('app.encryption_key')), $4, 'available')
        RETURNING id, game_id, login, price, status`,
       [game_id, login, password, price]
     );
@@ -135,7 +135,7 @@ router.put('/accounts/:id', verifyToken, requireRole(['admin', 'manager']), vali
     }
 
     if (password) {
-      updates.push(`password_encrypted = $${paramCount}`);
+      updates.push(`password_encrypted = pgp_sym_encrypt($${paramCount}, current_setting('app.encryption_key'))`);
       values.push(password);
       paramCount++;
     }
@@ -289,10 +289,10 @@ router.post('/keys', verifyToken, requireRole(['admin', 'manager']), validateKey
   const { game_id, key_code, price } = req.body;
 
   try {
-    // Сохраняем ключ как есть
+    // Шифруем ключ с помощью функции БД
     const result = await pool.query(
       `INSERT INTO Keys (game_id, key_code_encrypted, price, status)
-       VALUES ($1, $2, $3, 'available')
+       VALUES ($1, pgp_sym_encrypt($2, current_setting('app.encryption_key')), $3, 'available')
        RETURNING id, game_id, price, status`,
       [game_id, key_code, price]
     );
@@ -321,7 +321,7 @@ router.put('/keys/:id', verifyToken, requireRole(['admin', 'manager']), validate
     let paramCount = 1;
 
     if (key_code) {
-      updates.push(`key_code_encrypted = $${paramCount}`);
+      updates.push(`key_code_encrypted = pgp_sym_encrypt($${paramCount}, current_setting('app.encryption_key'))`);
       values.push(key_code);
       paramCount++;
     }

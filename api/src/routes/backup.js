@@ -33,7 +33,7 @@ router.post('/create', verifyToken, requireRole(['admin']), async (req, res) => 
       // Игнорируем ошибку, если директория уже существует
     }
 
-    // Выполняем pg_dump
+    // Выполняем pg_dump напрямую, подключаясь к postgres
     const command = `PGPASSWORD="${DB_PASSWORD}" pg_dump -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -F p -f ${filepath}`;
 
     await execAsync(command);
@@ -147,7 +147,7 @@ router.post('/restore', verifyToken, requireRole(['admin']), async (req, res) =>
       return res.status(404).json({ error: 'Файл резервной копии не найден' });
     }
 
-    // Выполняем восстановление
+    // Выполняем восстановление напрямую, подключаясь к postgres
     const command = `PGPASSWORD="${DB_PASSWORD}" psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -f ${filepath}`;
 
     await execAsync(command);
@@ -191,6 +191,67 @@ router.delete('/delete/:filename', verifyToken, requireRole(['admin']), async (r
       return res.status(404).json({ error: 'Файл не найден' });
     }
     res.status(500).json({ error: 'Не удалось удалить резервную копию' });
+  }
+});
+
+/**
+ * POST /api/backup/reset
+ * Сбросить базу данных (удалить все данные, но сохранить структуру и администраторов)
+ */
+router.post('/reset', verifyToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { pool } = require('../db');
+
+    // Шаг 1: Сохраняем всех администраторов с их ролями
+    const adminsResult = await pool.query(`
+      SELECT u.*, ARRAY_AGG(r.name) as roles
+      FROM Users u
+      JOIN UserRoles ur ON u.id = ur.user_id
+      JOIN Roles r ON ur.role_id = r.id
+      WHERE r.name = 'admin'
+      GROUP BY u.id
+    `);
+    const admins = adminsResult.rows;
+
+    console.log(`Сохранено ${admins.length} администраторов перед сбросом`);
+
+    // Шаг 2: Удаляем данные из всех таблиц в правильном порядке (из-за foreign keys)
+    await pool.query('DELETE FROM OrderItems');
+    await pool.query('DELETE FROM Orders');
+    await pool.query('DELETE FROM Keys');
+    await pool.query('DELETE FROM Accounts');
+    await pool.query('DELETE FROM UserRoles');
+    await pool.query('DELETE FROM Users');
+    await pool.query('DELETE FROM Games');
+    await pool.query('DELETE FROM Platforms');
+
+    // Шаг 3: Восстанавливаем администраторов
+    for (const admin of admins) {
+      // Вставляем пользователя обратно
+      await pool.query(
+        'INSERT INTO Users (id, username, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [admin.id, admin.username, admin.email, admin.password_hash, admin.created_at, admin.updated_at]
+      );
+
+      // Восстанавливаем роль админа
+      const roleResult = await pool.query('SELECT id FROM Roles WHERE name = $1', ['admin']);
+      if (roleResult.rows.length > 0) {
+        const roleId = roleResult.rows[0].id;
+        await pool.query(
+          'INSERT INTO UserRoles (user_id, role_id) VALUES ($1, $2)',
+          [admin.id, roleId]
+        );
+      }
+    }
+
+    res.json({
+      message: 'База данных успешно сброшена',
+      admins_preserved: admins.length,
+      reset_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error resetting database:', err);
+    res.status(500).json({ error: 'Не удалось сбросить базу данных', details: err.message });
   }
 });
 

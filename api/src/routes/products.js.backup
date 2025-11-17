@@ -15,8 +15,6 @@ const mapProductRow = (row) => {
     description: row.description ?? '',
     platform: row.platform,
     price: Number(row.price ?? 0),
-    min_account_price: row.account_min_price ? Number(row.account_min_price) : undefined,
-    min_key_price: row.key_min_price ? Number(row.key_min_price) : undefined,
     image: null,
     availability,
     inStock: availability.accounts + availability.keys > 0,
@@ -40,8 +38,6 @@ const baseSelect = `
       0
     ) AS price,
     COALESCE(acc.available_count, 0) AS accounts_available,
-    acc.min_price AS account_min_price,
-    key_items.min_price AS key_min_price,
     COALESCE(key_items.available_count, 0) AS keys_available
   FROM Games g
   JOIN Platforms p ON p.id = g.platform_id

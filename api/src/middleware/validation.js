@@ -219,15 +219,22 @@ const validateOrderCreation = (req, res, next) => {
   }
 
   for (const item of items) {
-    if (!item.game_id || !item.platform_id) {
+    if (!item.game_id) {
       return res.status(400).json({
-        error: 'Каждый товар должен содержать game_id и platform_id'
+        error: 'Каждый товар должен содержать game_id'
       });
     }
 
-    if (!isValidId(item.game_id) || !isValidId(item.platform_id)) {
+    if (!isValidId(item.game_id)) {
       return res.status(400).json({
-        error: 'Некорректные ID в товарах заказа'
+        error: 'Некорректный game_id в товарах заказа'
+      });
+    }
+
+    // Проверяем item_type, если указан
+    if (item.item_type && !['key', 'account'].includes(item.item_type)) {
+      return res.status(400).json({
+        error: 'item_type должен быть "key" или "account"'
       });
     }
   }

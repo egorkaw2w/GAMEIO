@@ -51,48 +51,83 @@ router.get('/', verifyToken, async (req, res) => {
 
 /**
  * GET /api/orders/:id
- * Получить информацию о заказе по ID
+ * Получить информацию о заказе по ID с полными деталями товаров
  */
 router.get('/:id', verifyToken, validateIdParam('id'), async (req, res) => {
   const orderId = req.params.id;
 
   try {
-    const result = await pool.query(`
+    // Получаем основную информацию о заказе
+    const orderResult = await pool.query(`
       SELECT
         o.id,
         o.user_id,
         u.username,
+        u.email,
         o.total_price,
         o.status,
-        o.created_at,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'id', oi.id,
-              'item_type', oi.item_type,
-              'item_id', oi.item_id,
-              'quantity', oi.quantity
-            )
-          ) FILTER (WHERE oi.id IS NOT NULL),
-          '[]'
-        ) as items
+        o.created_at
       FROM Orders o
       LEFT JOIN Users u ON o.user_id = u.id
-      LEFT JOIN OrderItems oi ON o.id = oi.order_id
       WHERE o.id = $1
-      GROUP BY o.id, o.user_id, u.username, o.total_price, o.status, o.created_at
     `, [orderId]);
 
-    if (result.rows.length === 0) {
+    if (orderResult.rows.length === 0) {
       return res.status(404).json({ error: 'Заказ не найден' });
     }
 
-    const order = result.rows[0];
+    const order = orderResult.rows[0];
 
     // Проверка прав доступа
     if (order.user_id !== req.user.user_id && !['admin', 'manager'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Доступ запрещён' });
     }
+
+    // Получаем детали товаров в заказе
+    const itemsResult = await pool.query(`
+      SELECT
+        oi.id,
+        oi.item_type,
+        oi.item_id,
+        oi.quantity,
+        CASE
+          WHEN oi.item_type = 'account' THEN (
+            SELECT json_build_object(
+              'id', a.id,
+              'game_id', g.id,
+              'game_title', g.title,
+              'platform_id', p.id,
+              'platform_name', p.name,
+              'price', a.price,
+              'login', a.login,
+              'password', a.password_encrypted
+            )
+            FROM Accounts a
+            JOIN Games g ON a.game_id = g.id
+            JOIN Platforms p ON g.platform_id = p.id
+            WHERE a.id = oi.item_id
+          )
+          WHEN oi.item_type = 'key' THEN (
+            SELECT json_build_object(
+              'id', k.id,
+              'game_id', g.id,
+              'game_title', g.title,
+              'platform_id', p.id,
+              'platform_name', p.name,
+              'price', k.price,
+              'key_code', k.key_code_encrypted
+            )
+            FROM Keys k
+            JOIN Games g ON k.game_id = g.id
+            JOIN Platforms p ON g.platform_id = p.id
+            WHERE k.id = oi.item_id
+          )
+        END as product_details
+      FROM OrderItems oi
+      WHERE oi.order_id = $1
+    `, [orderId]);
+
+    order.items = itemsResult.rows;
 
     res.json(order);
   } catch (err) {
@@ -106,7 +141,7 @@ router.get('/:id', verifyToken, validateIdParam('id'), async (req, res) => {
  * Создать новый заказ
  */
 router.post('/', verifyToken, validateOrderCreation, async (req, res) => {
-  const { items } = req.body; // [{ game_id: 1, platform_id: 1 }]
+  const { items } = req.body; // [{ game_id: 1, item_type: 'key' | 'account' }]
   const client = await pool.connect();
 
   try {
@@ -123,31 +158,37 @@ router.post('/', verifyToken, validateOrderCreation, async (req, res) => {
 
     // Добавляем товары в заказ
     for (const item of items) {
-      // Пытаемся найти доступный аккаунт
-      const accountRes = await client.query(
-        `SELECT id, price FROM Accounts
-         WHERE game_id = $1 AND status = 'available'
-         LIMIT 1`,
-        [item.game_id]
-      );
+      const itemType = item.item_type || 'key'; // По умолчанию ключ, если не указано
 
-      if (accountRes.rows.length > 0) {
-        const account = accountRes.rows[0];
-        total += parseFloat(account.price);
-
-        await client.query(
-          `INSERT INTO OrderItems (order_id, item_type, item_id, quantity)
-           VALUES ($1, 'account', $2, 1)`,
-          [orderId, account.id]
+      if (itemType === 'account') {
+        // Ищем доступный аккаунт
+        const accountRes = await client.query(
+          `SELECT id, price FROM Accounts
+           WHERE game_id = $1 AND status = 'available'
+           LIMIT 1`,
+          [item.game_id]
         );
 
-        // Помечаем аккаунт как проданный
-        await client.query(
-          `UPDATE Accounts SET status = 'sold' WHERE id = $1`,
-          [account.id]
-        );
+        if (accountRes.rows.length > 0) {
+          const account = accountRes.rows[0];
+          total += parseFloat(account.price);
+
+          await client.query(
+            `INSERT INTO OrderItems (order_id, item_type, item_id, quantity)
+             VALUES ($1, 'account', $2, 1)`,
+            [orderId, account.id]
+          );
+
+          // Помечаем аккаунт как проданный
+          await client.query(
+            `UPDATE Accounts SET status = 'sold' WHERE id = $1`,
+            [account.id]
+          );
+        } else {
+          throw new Error(`Аккаунт для игры game_id=${item.game_id} недоступен`);
+        }
       } else {
-        // Пытаемся найти доступный ключ
+        // Ищем доступный ключ
         const keyRes = await client.query(
           `SELECT id, price FROM Keys
            WHERE game_id = $1 AND status = 'available'
@@ -171,7 +212,7 @@ router.post('/', verifyToken, validateOrderCreation, async (req, res) => {
             [key.id]
           );
         } else {
-          throw new Error(`Товар с game_id=${item.game_id} недоступен`);
+          throw new Error(`Ключ для игры game_id=${item.game_id} недоступен`);
         }
       }
     }
