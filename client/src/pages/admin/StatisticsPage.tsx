@@ -6,17 +6,21 @@ import {
     Card,
     CardContent,
     Container,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     Paper,
     Typography,
 } from '@mui/material';
-import { BarChart, Download } from '@mui/icons-material';
+import { BarChart, Download, PictureAsPdf, TableChart } from '@mui/icons-material';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import BackButton from '../../components/ui/BackButton';
 import api from '../../lib/api';
-import { LineChart, Line, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart as RechartsBarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface OverviewStats {
     total_users: string;
@@ -55,6 +59,8 @@ const StatisticsPage = () => {
     const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null);
     const [salesByGame, setSalesByGame] = useState<SalesByGame[]>([]);
     const [salesByPeriod, setSalesByPeriod] = useState<SalesByPeriod[]>([]);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
+    const [exportType, setExportType] = useState<string>('');
 
     useEffect(() => {
         if (!user || user.role !== 'admin') {
@@ -82,24 +88,45 @@ const StatisticsPage = () => {
         }
     };
 
-    const handleExportCSV = async (type: string) => {
+    const openExportDialog = (type: string) => {
+        setExportType(type);
+        setExportDialogOpen(true);
+    };
+
+    const handleExport = async (format: 'csv' | 'pdf') => {
         try {
-            const response = await api.get(`/export/${type}`, {
-                responseType: 'blob',
-            });
+            const endpoint = format === 'pdf' ? `/export/${exportType}/pdf` : `/export/${exportType}`;
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `${type}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            if (format === 'pdf') {
+                // Для PDF открываем в новом окне для печати
+                const response = await api.get(endpoint);
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                    newWindow.document.write(response.data);
+                    newWindow.document.close();
+                }
+                setSuccess(`Документ открыт в новом окне. Используйте Ctrl+P для печати в PDF.`);
+            } else {
+                // Для CSV скачиваем файл
+                const response = await api.get(endpoint, {
+                    responseType: 'blob',
+                });
 
-            setSuccess(`Данные ${type} успешно экспортированы!`);
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `${exportType}.${format}`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+                setSuccess(`Данные ${exportType} успешно экспортированы в ${format.toUpperCase()}!`);
+            }
+
+            setExportDialogOpen(false);
         } catch (err: any) {
             console.error('Error exporting:', err);
-            setError(`Не удалось экспортировать ${type}`);
+            setError(`Не удалось экспортировать ${exportType}`);
         }
     };
 
@@ -132,7 +159,7 @@ const StatisticsPage = () => {
                 <Button
                     variant="outlined"
                     startIcon={<Download />}
-                    onClick={() => handleExportCSV('statistics')}
+                    onClick={() => openExportDialog('statistics')}
                     size="small"
                 >
                     Экспорт статистики
@@ -140,7 +167,7 @@ const StatisticsPage = () => {
                 <Button
                     variant="outlined"
                     startIcon={<Download />}
-                    onClick={() => handleExportCSV('orders')}
+                    onClick={() => openExportDialog('orders')}
                     size="small"
                 >
                     Экспорт заказов
@@ -148,12 +175,45 @@ const StatisticsPage = () => {
                 <Button
                     variant="outlined"
                     startIcon={<Download />}
-                    onClick={() => handleExportCSV('users')}
+                    onClick={() => openExportDialog('users')}
                     size="small"
                 >
                     Экспорт пользователей
                 </Button>
             </Box>
+
+            {/* Диалог выбора формата экспорта */}
+            <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)}>
+                <DialogTitle>Выберите формат экспорта</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+                        <Button
+                            variant="outlined"
+                            startIcon={<TableChart />}
+                            onClick={() => handleExport('csv')}
+                            fullWidth
+                            size="large"
+                        >
+                            Экспорт в CSV
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            startIcon={<PictureAsPdf />}
+                            onClick={() => handleExport('pdf')}
+                            fullWidth
+                            size="large"
+                            color="error"
+                        >
+                            Экспорт в PDF
+                        </Button>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setExportDialogOpen(false)}>
+                        Отмена
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {overviewStats && (
                 <>
@@ -231,6 +291,40 @@ const StatisticsPage = () => {
                                     <Legend />
                                     <Bar dataKey="total_revenue" fill="#8884d8" name="Выручка (₽)" />
                                 </RechartsBarChart>
+                            </ResponsiveContainer>
+                        </Paper>
+                    </Box>
+
+                    <Box sx={{ mb: 3 }}>
+                        <Paper sx={{ p: 3 }}>
+                            <Typography variant="h6" gutterBottom>
+                                Распределение продаж по типам
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                    <Pie
+                                        data={[
+                                            { name: 'Проданные ключи', value: parseInt(overviewStats.sold_keys) },
+                                            { name: 'Проданные аккаунты', value: parseInt(overviewStats.sold_accounts) },
+                                            { name: 'Доступные ключи', value: parseInt(overviewStats.available_keys) },
+                                            { name: 'Доступные аккаунты', value: parseInt(overviewStats.available_accounts) }
+                                        ]}
+                                        cx="50%"
+                                        cy="50%"
+                                        labelLine={false}
+                                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                    >
+                                        <Cell fill="#82ca9d" />
+                                        <Cell fill="#8884d8" />
+                                        <Cell fill="#ffc658" />
+                                        <Cell fill="#ff8042" />
+                                    </Pie>
+                                    <Tooltip />
+                                    <Legend />
+                                </PieChart>
                             </ResponsiveContainer>
                         </Paper>
                     </Box>

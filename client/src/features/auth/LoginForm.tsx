@@ -104,6 +104,16 @@ const LoginForm = () => {
         autoComplete="current-password"
         fullWidth
       />
+      <Box sx={{ textAlign: 'right' }}>
+        <Link
+          component={RouterLink}
+          to="/forgot-password"
+          variant="body2"
+          sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+        >
+          Забыли пароль?
+        </Link>
+      </Box>
       <Button
         type="submit"
         variant="contained"

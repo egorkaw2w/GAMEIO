@@ -136,6 +136,45 @@ const CheckoutPage = () => {
         return v;
     };
 
+    const formatPhoneNumber = (value: string) => {
+        // Убираем все нецифровые символы
+        const digits = value.replace(/\D/g, '');
+
+        // Если пользователь стёр всё, возвращаем пустую строку
+        if (digits.length === 0) {
+            return '';
+        }
+
+        // Берём только цифры после 7 (или 8)
+        let phoneDigits = digits;
+        if (digits.startsWith('8')) {
+            phoneDigits = '7' + digits.slice(1);
+        } else if (!digits.startsWith('7')) {
+            phoneDigits = '7' + digits;
+        }
+
+        // Ограничиваем до 11 цифр (7 + 10 цифр номера)
+        phoneDigits = phoneDigits.slice(0, 11);
+
+        // Форматируем: +7 (XXX) XXX-XX-XX
+        let formatted = '+7';
+
+        if (phoneDigits.length > 1) {
+            formatted += ' (' + phoneDigits.slice(1, 4);
+        }
+        if (phoneDigits.length >= 5) {
+            formatted += ') ' + phoneDigits.slice(4, 7);
+        }
+        if (phoneDigits.length >= 8) {
+            formatted += '-' + phoneDigits.slice(7, 9);
+        }
+        if (phoneDigits.length >= 10) {
+            formatted += '-' + phoneDigits.slice(9, 11);
+        }
+
+        return formatted;
+    };
+
     if (!user) {
         navigate('/login');
         return <LoadingSpinner />;
@@ -298,8 +337,9 @@ const CheckoutPage = () => {
                                     fullWidth
                                     label="Номер телефона"
                                     value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
+                                    onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
                                     placeholder="+7 (900) 123-45-67"
+                                    inputProps={{ maxLength: 18 }}
                                 />
                                 <Alert severity="info">
                                     После нажатия "Оплатить" вам придёт push-уведомление от вашего банка
