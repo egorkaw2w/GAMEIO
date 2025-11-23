@@ -255,6 +255,153 @@ router.get('/statistics', verifyToken, requireRole(['admin', 'manager']), async 
 });
 
 /**
+ * Вспомогательная функция для генерации HTML для PDF
+ */
+const convertToHTML = (data, title) => {
+  if (data.length === 0) return '<html><body><h1>Нет данных</h1></body></html>';
+
+  const headers = Object.keys(data[0]);
+
+  const headerRow = headers.map(h => `<th>${h}</th>`).join('');
+  const bodyRows = data.map(row => {
+    return `<tr>${headers.map(h => `<td>${row[h] || ''}</td>`).join('')}</tr>`;
+  }).join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: #333; text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #667eea; color: white; font-weight: bold; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    @media print {
+      body { margin: 0; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <p>Дата экспорта: ${new Date().toLocaleString('ru-RU')}</p>
+  <table>
+    <thead><tr>${headerRow}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+</body>
+</html>`;
+};
+
+/**
+ * GET /api/export/users/pdf
+ * Экспорт пользователей в PDF
+ */
+router.get('/users/pdf', verifyToken, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.created_at,
+        STRING_AGG(r.name, '; ') as roles
+      FROM Users u
+      LEFT JOIN UserRoles ur ON u.id = ur.user_id
+      LEFT JOIN Roles r ON ur.role_id = r.id
+      GROUP BY u.id, u.username, u.email, u.created_at
+      ORDER BY u.id
+    `);
+
+    const html = convertToHTML(result.rows, 'Пользователи');
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('Error exporting users to PDF:', err);
+    res.status(500).json({ error: 'Не удалось экспортировать пользователей' });
+  }
+});
+
+/**
+ * GET /api/export/orders/pdf
+ * Экспорт заказов в PDF
+ */
+router.get('/orders/pdf', verifyToken, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        o.id,
+        u.username,
+        u.email,
+        o.total_price,
+        o.status,
+        o.created_at
+      FROM Orders o
+      LEFT JOIN Users u ON o.user_id = u.id
+      ORDER BY o.id
+    `);
+
+    const html = convertToHTML(result.rows, 'Заказы');
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('Error exporting orders to PDF:', err);
+    res.status(500).json({ error: 'Не удалось экспортировать заказы' });
+  }
+});
+
+/**
+ * GET /api/export/statistics/pdf
+ * Экспорт статистики в PDF
+ */
+router.get('/statistics/pdf', verifyToken, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        g.id as game_id,
+        g.title as game_title,
+        p.name as platform_name,
+        COUNT(DISTINCT o.id) as orders_count,
+        COALESCE(SUM(
+          CASE
+            WHEN oi.item_type = 'account' THEN a.price
+            WHEN oi.item_type = 'key' THEN k.price
+            ELSE 0
+          END
+        ), 0) as total_revenue,
+        COUNT(a.id) FILTER (WHERE a.status = 'available') as available_accounts,
+        COUNT(k.id) FILTER (WHERE k.status = 'available') as available_keys
+      FROM Games g
+      LEFT JOIN Platforms p ON g.platform_id = p.id
+      LEFT JOIN Accounts a ON g.id = a.game_id
+      LEFT JOIN Keys k ON g.id = k.game_id
+      LEFT JOIN OrderItems oi ON (
+        (oi.item_type = 'account' AND oi.item_id = a.id) OR
+        (oi.item_type = 'key' AND oi.item_id = k.id)
+      )
+      LEFT JOIN Orders o ON oi.order_id = o.id AND o.status = 'completed'
+      GROUP BY g.id, g.title, p.name
+      ORDER BY total_revenue DESC
+    `);
+
+    const html = convertToHTML(result.rows, 'Статистика продаж');
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('Error exporting statistics to PDF:', err);
+    res.status(500).json({ error: 'Не удалось экспортировать статистику' });
+  }
+});
+
+/**
  * POST /api/export/import-games
  * Импорт игр из CSV
  */

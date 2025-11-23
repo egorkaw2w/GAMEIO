@@ -19,6 +19,7 @@ const statisticsRoutes = require('./routes/statistics');
 const exportRoutes = require('./routes/export');
 const settingsRoutes = require('./routes/settings');
 const backupRoutes = require('./routes/backup');
+const passwordResetRoutes = require('./routes/password-reset');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,6 +50,7 @@ app.get('/', (req, res) => {
       export: '/api/export',
       settings: '/api/settings',
       backup: '/api/backup',
+      passwordReset: '/api/password-reset',
       docs: '/api-docs'
     }
   });
@@ -66,6 +68,7 @@ app.use('/api/statistics', statisticsRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/password-reset', passwordResetRoutes);
 
 // Swagger документация
 try {
