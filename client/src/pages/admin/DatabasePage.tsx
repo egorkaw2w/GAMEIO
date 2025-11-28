@@ -6,7 +6,14 @@ import {
     Card,
     CardContent,
     Container,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     Divider,
+    FormControlLabel,
+    Radio,
+    RadioGroup,
     Stack,
     Table,
     TableBody,
@@ -16,7 +23,7 @@ import {
     TableRow,
     Typography,
 } from '@mui/material';
-import { Storage, CloudDownload, RestorePage, DeleteSweep, Backup } from '@mui/icons-material';
+import { Storage, CloudDownload, RestorePage, DeleteSweep, Backup, Delete } from '@mui/icons-material';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
@@ -37,6 +44,9 @@ const DatabasePage = () => {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [backups, setBackups] = useState<BackupFile[]>([]);
+    const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+    const [selectedBackup, setSelectedBackup] = useState<string>('');
+    const [restoring, setRestoring] = useState(false);
 
     useEffect(() => {
         if (!user || user.role !== 'admin') {
@@ -72,26 +82,48 @@ const DatabasePage = () => {
         }
     };
 
-    const handleRestoreBackup = async () => {
+    const handleOpenRestoreDialog = () => {
         if (!backups.length) {
             setError('Нет доступных резервных копий');
             return;
         }
+        setSelectedBackup(backups[0].filename);
+        setRestoreDialogOpen(true);
+    };
 
-        if (!confirm('Вы уверены, что хотите восстановить базу данных из последней резервной копии? Текущие данные будут перезаписаны.')) {
+    const handleRestoreBackup = async () => {
+        if (!selectedBackup) {
+            setError('Выберите резервную копию');
             return;
         }
 
+        setRestoring(true);
         setError(null);
         setSuccess(null);
 
         try {
-            const latestBackup = backups[0];
-            await api.post('/backup/restore', { filename: latestBackup.filename });
+            await api.post('/backup/restore', { filename: selectedBackup });
             setSuccess('База данных успешно восстановлена!');
+            setRestoreDialogOpen(false);
         } catch (err: any) {
             console.error('Error restoring backup:', err);
             setError(err.response?.data?.error || 'Не удалось восстановить базу данных');
+        } finally {
+            setRestoring(false);
+        }
+    };
+
+    const handleDeleteBackup = async (filename: string) => {
+        if (!confirm(`Удалить резервную копию ${filename}?`)) {
+            return;
+        }
+
+        try {
+            await api.delete(`/backup/delete/${filename}`);
+            setSuccess('Резервная копия удалена');
+            fetchBackups();
+        } catch (err: any) {
+            setError(err.response?.data?.error || 'Не удалось удалить резервную копию');
         }
     };
 
@@ -176,7 +208,7 @@ const DatabasePage = () => {
                                 variant="contained"
                                 color="success"
                                 startIcon={<RestorePage />}
-                                onClick={handleRestoreBackup}
+                                onClick={handleOpenRestoreDialog}
                                 fullWidth
                                 disabled={!backups.length}
                             >
@@ -223,6 +255,7 @@ const DatabasePage = () => {
                                         <TableCell>Имя файла</TableCell>
                                         <TableCell>Размер</TableCell>
                                         <TableCell>Дата создания</TableCell>
+                                        <TableCell align="center">Действия</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -235,11 +268,21 @@ const DatabasePage = () => {
                                             <TableCell>
                                                 {new Date(backup.created_at).toLocaleString('ru-RU')}
                                             </TableCell>
+                                            <TableCell align="center">
+                                                <Button
+                                                    size="small"
+                                                    color="error"
+                                                    startIcon={<Delete />}
+                                                    onClick={() => handleDeleteBackup(backup.filename)}
+                                                >
+                                                    Удалить
+                                                </Button>
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                     {backups.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={3} align="center">
+                                            <TableCell colSpan={4} align="center">
                                                 <Typography color="text.secondary">
                                                     Нет резервных копий
                                                 </Typography>
@@ -252,6 +295,54 @@ const DatabasePage = () => {
                     </CardContent>
                 </Card>
             </Stack>
+
+            {/* Диалог восстановления из бэкапа */}
+            <Dialog open={restoreDialogOpen} onClose={() => setRestoreDialogOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Восстановление из резервной копии</DialogTitle>
+                <DialogContent>
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        Внимание! Текущие данные будут перезаписаны данными из выбранной резервной копии.
+                    </Alert>
+                    <Typography variant="subtitle2" gutterBottom>
+                        Выберите резервную копию:
+                    </Typography>
+                    <RadioGroup
+                        value={selectedBackup}
+                        onChange={(e) => setSelectedBackup(e.target.value)}
+                    >
+                        {backups.map((backup) => (
+                            <FormControlLabel
+                                key={backup.filename}
+                                value={backup.filename}
+                                control={<Radio />}
+                                label={
+                                    <Box>
+                                        <Typography variant="body2" fontWeight={600}>
+                                            {backup.filename}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {(backup.size / 1024).toFixed(2)} KB | {new Date(backup.created_at).toLocaleString('ru-RU')}
+                                        </Typography>
+                                    </Box>
+                                }
+                            />
+                        ))}
+                    </RadioGroup>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setRestoreDialogOpen(false)} disabled={restoring}>
+                        Отмена
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color="success"
+                        onClick={handleRestoreBackup}
+                        disabled={!selectedBackup || restoring}
+                    >
+                        {restoring ? 'Восстановление...' : 'Восстановить'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Container>
     );
 };

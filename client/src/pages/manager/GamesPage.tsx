@@ -63,7 +63,7 @@ const GamesPage = () => {
     });
 
     useEffect(() => {
-        if (!user || user.role !== 'manager') {
+        if (!user || (user.role !== 'manager' && user.role !== 'admin')) {
             navigate('/');
             return;
         }

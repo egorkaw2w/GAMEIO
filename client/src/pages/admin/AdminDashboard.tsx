@@ -14,6 +14,7 @@ import {
     ManageAccounts,
     BarChart,
     Storage,
+    History,
 } from '@mui/icons-material';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -77,6 +78,13 @@ const AdminDashboard = () => {
         e.preventDefault();
         if (user?.role === 'admin') {
             navigate('/admin/database');
+        }
+    }, { enableOnFormTags: false });
+
+    useHotkeys('alt+4', (e) => {
+        e.preventDefault();
+        if (user?.role === 'admin') {
+            navigate('/admin/logs');
         }
     }, { enableOnFormTags: false });
 
@@ -199,7 +207,7 @@ const AdminDashboard = () => {
             )}
 
             {user.role === 'admin' && (
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 3 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 3 }}>
                     <Card
                         sx={{
                             height: '100%',
@@ -294,6 +302,40 @@ const AdminDashboard = () => {
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     navigate('/admin/database');
+                                }}
+                            >
+                                Перейти
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    <Card
+                        sx={{
+                            height: '100%',
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            '&:hover': {
+                                transform: 'translateY(-8px)',
+                                boxShadow: 6,
+                            },
+                        }}
+                        onClick={() => navigate('/admin/logs')}
+                    >
+                        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                            <History sx={{ fontSize: 60, color: 'info.main', mb: 2 }} />
+                            <Typography variant="h5" fontWeight={600} gutterBottom>
+                                Журнал событий
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Просмотр всех действий на сайте
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                color="info"
+                                sx={{ mt: 3 }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate('/admin/logs');
                                 }}
                             >
                                 Перейти

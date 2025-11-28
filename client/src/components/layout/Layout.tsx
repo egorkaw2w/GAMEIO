@@ -9,12 +9,22 @@ import { useStore } from '../../store';
 
 const Layout = () => {
     const navigate = useNavigate();
-    const { logout } = useStore();
+    const { user, logout } = useStore();
+
+    // Проверяем, является ли пользователь админом или менеджером
+    const isAdminOrManager = user && (user.role === 'admin' || user.role === 'manager');
+
+    // Определяем главную страницу в зависимости от роли
+    const getHomePage = () => {
+        if (user?.role === 'admin') return '/admin';
+        if (user?.role === 'manager') return '/admin';
+        return '/';
+    };
 
     // Навигация
     useHotkeys('ctrl+h', (e) => {
         e.preventDefault();
-        navigate('/');
+        navigate(getHomePage());
     }, { description: 'Перейти на главную страницу' });
 
     useHotkeys('ctrl+p', (e) => {
@@ -54,7 +64,8 @@ const Layout = () => {
             <Box component="main" sx={{ flexGrow: 1 }}>
                 <Outlet />
             </Box>
-            <Footer />
+            {/* Футер скрыт для админа и менеджера */}
+            {!isAdminOrManager && <Footer />}
             <HotkeysHelper />
         </Box>
     );

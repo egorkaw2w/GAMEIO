@@ -25,6 +25,8 @@ import {
     AdminPanelSettings,
     Menu as MenuIcon,
     SportsEsports,
+    Storage,
+    History,
 } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
@@ -37,6 +39,15 @@ const Header = () => {
     const [mobileMenuAnchor, setMobileMenuAnchor] = useState<null | HTMLElement>(null);
 
     const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+
+    // Определяем главную страницу в зависимости от роли
+    const getHomePage = () => {
+        if (user?.role === 'admin') return '/admin';
+        if (user?.role === 'manager') return '/admin';
+        return '/';
+    };
+
+    const isAdminOrManager = user && (user.role === 'admin' || user.role === 'manager');
 
     // Elevation on scroll effect
     const trigger = useScrollTrigger({
@@ -88,7 +99,7 @@ const Header = () => {
                     <Typography
                         variant="h5"
                         component={RouterLink}
-                        to="/"
+                        to={getHomePage()}
                         sx={{
                             mr: 2,
                             display: { xs: 'none', md: 'flex' },
@@ -101,7 +112,7 @@ const Header = () => {
                             },
                         }}
                     >
-                        GameIO
+                        {isAdminOrManager ? 'GameIO Admin' : 'GameIO'}
                     </Typography>
 
                     {/* Mobile menu */}
@@ -126,12 +137,38 @@ const Header = () => {
                                 horizontal: 'left',
                             }}
                         >
-                            <MenuItem onClick={() => handleNavigate('/')}>
-                                <Typography textAlign="center">Главная</Typography>
-                            </MenuItem>
-                            <MenuItem onClick={() => handleNavigate('/catalog')}>
-                                <Typography textAlign="center">Каталог</Typography>
-                            </MenuItem>
+                            {isAdminOrManager ? (
+                                <>
+                                    <MenuItem onClick={() => handleNavigate(getHomePage())}>
+                                        <Typography textAlign="center">Панель управления</Typography>
+                                    </MenuItem>
+                                    <MenuItem onClick={() => handleNavigate('/manager/games')}>
+                                        <Typography textAlign="center">Игры</Typography>
+                                    </MenuItem>
+                                    <MenuItem onClick={() => handleNavigate('/admin/statistics')}>
+                                        <Typography textAlign="center">Статистика</Typography>
+                                    </MenuItem>
+                                    {user?.role === 'admin' && (
+                                        <>
+                                            <MenuItem onClick={() => handleNavigate('/admin/database')}>
+                                                <Typography textAlign="center">База данных</Typography>
+                                            </MenuItem>
+                                            <MenuItem onClick={() => handleNavigate('/admin/logs')}>
+                                                <Typography textAlign="center">Журнал событий</Typography>
+                                            </MenuItem>
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <MenuItem onClick={() => handleNavigate('/')}>
+                                        <Typography textAlign="center">Главная</Typography>
+                                    </MenuItem>
+                                    <MenuItem onClick={() => handleNavigate('/catalog')}>
+                                        <Typography textAlign="center">Каталог</Typography>
+                                    </MenuItem>
+                                </>
+                            )}
                         </Menu>
                     </Box>
 
@@ -140,7 +177,7 @@ const Header = () => {
                     <Typography
                         variant="h6"
                         component={RouterLink}
-                        to="/"
+                        to={getHomePage()}
                         sx={{
                             mr: 2,
                             display: { xs: 'flex', md: 'none' },
@@ -151,7 +188,7 @@ const Header = () => {
                             textDecoration: 'none',
                         }}
                     >
-                        GameIO
+                        {isAdminOrManager ? 'Admin' : 'GameIO'}
                     </Typography>
 
                     {/* Desktop menu */}
@@ -267,12 +304,28 @@ const Header = () => {
                                 {(user.role === 'admin' || user.role === 'manager') && (
                                     <>
                                         <Divider />
-                                        <MenuItem onClick={() => handleNavigate('/admin')}>
+                                        <MenuItem onClick={() => handleNavigate(user.role === 'admin' ? '/admin' : '/manager/games')}>
                                             <ListItemIcon>
                                                 <AdminPanelSettings fontSize="small" />
                                             </ListItemIcon>
                                             <ListItemText>{user.role === 'admin' ? 'Админ-панель' : 'Панель менеджера'}</ListItemText>
                                         </MenuItem>
+                                        {user.role === 'admin' && (
+                                            <>
+                                                <MenuItem onClick={() => handleNavigate('/admin/database')}>
+                                                    <ListItemIcon>
+                                                        <Storage fontSize="small" />
+                                                    </ListItemIcon>
+                                                    <ListItemText>База данных</ListItemText>
+                                                </MenuItem>
+                                                <MenuItem onClick={() => handleNavigate('/admin/logs')}>
+                                                    <ListItemIcon>
+                                                        <History fontSize="small" />
+                                                    </ListItemIcon>
+                                                    <ListItemText>Журнал событий</ListItemText>
+                                                </MenuItem>
+                                            </>
+                                        )}
                                     </>
                                 )}
                                 <Divider />

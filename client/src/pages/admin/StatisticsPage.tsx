@@ -98,14 +98,32 @@ const StatisticsPage = () => {
             const endpoint = format === 'pdf' ? `/export/${exportType}/pdf` : `/export/${exportType}`;
 
             if (format === 'pdf') {
-                // Для PDF открываем в новом окне для печати
+                // Для PDF открываем в новом окне и автоматически вызываем диалог печати
                 const response = await api.get(endpoint);
                 const newWindow = window.open('', '_blank');
                 if (newWindow) {
-                    newWindow.document.write(response.data);
+                    // Добавляем скрипт для автоматического открытия диалога печати
+                    const htmlWithPrint = response.data.replace(
+                        '</body>',
+                        `<script>
+                            window.onload = function() {
+                                // Небольшая задержка для загрузки стилей
+                                setTimeout(function() {
+                                    window.print();
+                                }, 500);
+                            };
+                        </script>
+                        <div style="position: fixed; top: 10px; right: 10px; z-index: 9999;">
+                            <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; background: #667eea; color: white; border: none; border-radius: 5px;">
+                                Сохранить как PDF
+                            </button>
+                        </div>
+                        </body>`
+                    );
+                    newWindow.document.write(htmlWithPrint);
                     newWindow.document.close();
                 }
-                setSuccess(`Документ открыт в новом окне. Используйте Ctrl+P для печати в PDF.`);
+                setSuccess(`Откроется диалог сохранения. Выберите "Сохранить как PDF" или "Microsoft Print to PDF".`);
             } else {
                 // Для CSV скачиваем файл
                 const response = await api.get(endpoint, {
