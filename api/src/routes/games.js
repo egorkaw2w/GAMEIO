@@ -4,6 +4,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { validateGameCreation, validateIdParam } = require('../middleware/validation');
+const { logAction } = require('./logs');
 
 /**
  * GET /api/games
@@ -108,12 +109,24 @@ router.post('/', verifyToken, requireRole(['admin', 'manager']), validateGameCre
   const { title, platform_id, description } = req.body;
 
   try {
+    // Получаем название платформы для лога
+    const platformRes = await pool.query('SELECT name FROM Platforms WHERE id = $1', [platform_id]);
+    const platformName = platformRes.rows[0]?.name || 'Неизвестная платформа';
+
     const result = await pool.query(
       `INSERT INTO Games (title, platform_id, description)
        VALUES ($1, $2, $3)
        RETURNING id, title, platform_id, description, created_at`,
       [title, platform_id, description || null]
     );
+
+    // Логируем создание игры
+    await logAction(req.user.user_id, 'GAME_CREATE', 'Games', null, {
+      game_id: result.rows[0].id,
+      title: title,
+      platform: platformName,
+      description: description || null
+    });
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -137,6 +150,15 @@ router.put('/:id', verifyToken, requireRole(['admin', 'manager']), validateIdPar
   const { title, platform_id, description } = req.body;
 
   try {
+    // Получаем старые данные для лога
+    const oldDataRes = await pool.query(`
+      SELECT g.title, g.description, p.name as platform_name
+      FROM Games g
+      LEFT JOIN Platforms p ON g.platform_id = p.id
+      WHERE g.id = $1
+    `, [gameId]);
+    const oldData = oldDataRes.rows[0];
+
     const updates = [];
     const values = [];
     let paramCount = 1;
@@ -178,6 +200,12 @@ router.put('/:id', verifyToken, requireRole(['admin', 'manager']), validateIdPar
       return res.status(404).json({ error: 'Игра не найдена' });
     }
 
+    // Логируем обновление игры
+    await logAction(req.user.user_id, 'GAME_UPDATE', 'Games',
+      { title: oldData?.title, description: oldData?.description },
+      { game_id: gameId, title: title || oldData?.title, description: description !== undefined ? description : oldData?.description }
+    );
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating game:', err);
@@ -196,11 +224,26 @@ router.delete('/:id', verifyToken, requireRole(['admin']), validateIdParam('id')
   const gameId = req.params.id;
 
   try {
+    // Получаем данные игры для лога перед удалением
+    const gameRes = await pool.query(`
+      SELECT g.title, p.name as platform_name
+      FROM Games g
+      LEFT JOIN Platforms p ON g.platform_id = p.id
+      WHERE g.id = $1
+    `, [gameId]);
+    const gameData = gameRes.rows[0];
+
     const result = await pool.query('DELETE FROM Games WHERE id = $1 RETURNING id', [gameId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Игра не найдена' });
     }
+
+    // Логируем удаление игры
+    await logAction(req.user.user_id, 'GAME_DELETE', 'Games',
+      { game_id: gameId, title: gameData?.title, platform: gameData?.platform_name },
+      null
+    );
 
     res.json({ message: 'Игра успешно удалена', id: gameId });
   } catch (err) {

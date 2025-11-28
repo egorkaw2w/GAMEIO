@@ -4,6 +4,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { validateAccountCreation, validateKeyCreation, validateIdParam } = require('../middleware/validation');
+const { logAction } = require('./logs');
 
 // ============= ACCOUNTS =============
 
@@ -97,6 +98,10 @@ router.post('/accounts', verifyToken, requireRole(['admin', 'manager']), validat
   const { game_id, login, password, price } = req.body;
 
   try {
+    // Получаем название игры для лога
+    const gameRes = await pool.query('SELECT title FROM Games WHERE id = $1', [game_id]);
+    const gameTitle = gameRes.rows[0]?.title || 'Неизвестная игра';
+
     // Сохраняем пароль как есть
     const result = await pool.query(
       `INSERT INTO Accounts (game_id, login, password_encrypted, price, status)
@@ -104,6 +109,14 @@ router.post('/accounts', verifyToken, requireRole(['admin', 'manager']), validat
        RETURNING id, game_id, login, price, status`,
       [game_id, login, password, price]
     );
+
+    // Логируем добавление аккаунта
+    await logAction(req.user.user_id, 'ACCOUNT_ADD', 'Accounts', null, {
+      account_id: result.rows[0].id,
+      login: login,
+      game_title: gameTitle,
+      price: price
+    });
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -124,6 +137,15 @@ router.put('/accounts/:id', verifyToken, requireRole(['admin', 'manager']), vali
   const { login, password, price, status } = req.body;
 
   try {
+    // Получаем старые данные для лога
+    const oldDataRes = await pool.query(`
+      SELECT a.login, a.price, a.status, g.title as game_title
+      FROM Accounts a
+      LEFT JOIN Games g ON a.game_id = g.id
+      WHERE a.id = $1
+    `, [accountId]);
+    const oldData = oldDataRes.rows[0];
+
     const updates = [];
     const values = [];
     let paramCount = 1;
@@ -171,6 +193,12 @@ router.put('/accounts/:id', verifyToken, requireRole(['admin', 'manager']), vali
       return res.status(404).json({ error: 'Аккаунт не найден' });
     }
 
+    // Логируем обновление аккаунта
+    await logAction(req.user.user_id, 'ACCOUNT_UPDATE', 'Accounts',
+      { login: oldData?.login, price: oldData?.price, status: oldData?.status },
+      { account_id: accountId, login: login || oldData?.login, game_title: oldData?.game_title, price: price !== undefined ? price : oldData?.price, status: status || oldData?.status }
+    );
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating account:', err);
@@ -186,11 +214,26 @@ router.delete('/accounts/:id', verifyToken, requireRole(['admin']), validateIdPa
   const accountId = req.params.id;
 
   try {
+    // Получаем данные аккаунта для лога перед удалением
+    const accountRes = await pool.query(`
+      SELECT a.login, a.price, g.title as game_title
+      FROM Accounts a
+      LEFT JOIN Games g ON a.game_id = g.id
+      WHERE a.id = $1
+    `, [accountId]);
+    const accountData = accountRes.rows[0];
+
     const result = await pool.query('DELETE FROM Accounts WHERE id = $1 RETURNING id', [accountId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Аккаунт не найден' });
     }
+
+    // Логируем удаление аккаунта
+    await logAction(req.user.user_id, 'ACCOUNT_DELETE', 'Accounts',
+      { account_id: accountId, login: accountData?.login, game_title: accountData?.game_title, price: accountData?.price },
+      null
+    );
 
     res.json({ message: 'Аккаунт успешно удалён', id: accountId });
   } catch (err) {
@@ -289,6 +332,10 @@ router.post('/keys', verifyToken, requireRole(['admin', 'manager']), validateKey
   const { game_id, key_code, price } = req.body;
 
   try {
+    // Получаем название игры для лога
+    const gameRes = await pool.query('SELECT title FROM Games WHERE id = $1', [game_id]);
+    const gameTitle = gameRes.rows[0]?.title || 'Неизвестная игра';
+
     // Сохраняем ключ как есть
     const result = await pool.query(
       `INSERT INTO Keys (game_id, key_code_encrypted, price, status)
@@ -296,6 +343,15 @@ router.post('/keys', verifyToken, requireRole(['admin', 'manager']), validateKey
        RETURNING id, game_id, price, status`,
       [game_id, key_code, price]
     );
+
+    // Логируем добавление ключа (показываем только первые символы ключа)
+    const maskedKey = key_code.length > 6 ? key_code.substring(0, 6) + '...' : key_code;
+    await logAction(req.user.user_id, 'KEY_ADD', 'Keys', null, {
+      key_id: result.rows[0].id,
+      key_code: maskedKey,
+      game_title: gameTitle,
+      price: price
+    });
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -316,6 +372,15 @@ router.put('/keys/:id', verifyToken, requireRole(['admin', 'manager']), validate
   const { key_code, price, status } = req.body;
 
   try {
+    // Получаем старые данные для лога
+    const oldDataRes = await pool.query(`
+      SELECT k.price, k.status, g.title as game_title
+      FROM Keys k
+      LEFT JOIN Games g ON k.game_id = g.id
+      WHERE k.id = $1
+    `, [keyId]);
+    const oldData = oldDataRes.rows[0];
+
     const updates = [];
     const values = [];
     let paramCount = 1;
@@ -357,6 +422,12 @@ router.put('/keys/:id', verifyToken, requireRole(['admin', 'manager']), validate
       return res.status(404).json({ error: 'Ключ не найден' });
     }
 
+    // Логируем обновление ключа
+    await logAction(req.user.user_id, 'KEY_UPDATE', 'Keys',
+      { price: oldData?.price, status: oldData?.status },
+      { key_id: keyId, game_title: oldData?.game_title, price: price !== undefined ? price : oldData?.price, status: status || oldData?.status }
+    );
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating key:', err);
@@ -372,11 +443,26 @@ router.delete('/keys/:id', verifyToken, requireRole(['admin']), validateIdParam(
   const keyId = req.params.id;
 
   try {
+    // Получаем данные ключа для лога перед удалением
+    const keyRes = await pool.query(`
+      SELECT k.price, g.title as game_title
+      FROM Keys k
+      LEFT JOIN Games g ON k.game_id = g.id
+      WHERE k.id = $1
+    `, [keyId]);
+    const keyData = keyRes.rows[0];
+
     const result = await pool.query('DELETE FROM Keys WHERE id = $1 RETURNING id', [keyId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Ключ не найден' });
     }
+
+    // Логируем удаление ключа
+    await logAction(req.user.user_id, 'KEY_DELETE', 'Keys',
+      { key_id: keyId, game_title: keyData?.game_title, price: keyData?.price },
+      null
+    );
 
     res.json({ message: 'Ключ успешно удалён', id: keyId });
   } catch (err) {

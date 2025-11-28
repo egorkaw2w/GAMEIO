@@ -74,10 +74,25 @@ router.get('/list', verifyToken, requireRole(['admin']), async (req, res) => {
         const filepath = path.join(BACKUP_DIR, file);
         const stats = await fs.stat(filepath);
 
+        // Парсим дату из имени файла (backup_2025-11-23T14-00-00-000Z.sql)
+        let created_at;
+        const dateMatch = file.match(/backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)\.sql/);
+        if (dateMatch) {
+          // Преобразуем формат обратно в ISO (заменяем - на : в времени)
+          const dateStr = dateMatch[1].replace(/-/g, (match, offset) => {
+            // Первые два дефиса оставляем (дата), остальные заменяем на :
+            return offset > 9 ? ':' : '-';
+          }).replace(/:(\d{3})Z$/, '.$1Z'); // Миллисекунды с точкой
+          created_at = new Date(dateStr).toISOString();
+        } else {
+          // Fallback на mtime если не удалось спарсить
+          created_at = stats.mtime.toISOString();
+        }
+
         backups.push({
           filename: file,
           size: stats.size,
-          created_at: stats.birthtime.toISOString()
+          created_at
         });
       }
     }
@@ -100,8 +115,8 @@ router.get('/download/:filename', verifyToken, requireRole(['admin']), async (re
   try {
     const filename = req.params.filename;
 
-    // Проверяем, что filename содержит только допустимые символы
-    if (!/^backup_[\d-]+\.sql$/.test(filename)) {
+    // Проверяем, что filename содержит только допустимые символы (backup_2025-11-23T14-00-00-000Z.sql)
+    if (!/^backup_[\d\-TZ]+\.sql$/.test(filename)) {
       return res.status(400).json({ error: 'Некорректное имя файла' });
     }
 
@@ -133,8 +148,8 @@ router.post('/restore', verifyToken, requireRole(['admin']), async (req, res) =>
       return res.status(400).json({ error: 'Имя файла обязательно' });
     }
 
-    // Проверяем, что filename содержит только допустимые символы
-    if (!/^backup_[\d-]+\.sql$/.test(filename)) {
+    // Проверяем, что filename содержит только допустимые символы (backup_2025-11-23T14-00-00-000Z.sql)
+    if (!/^backup_[\d\-TZ]+\.sql$/.test(filename)) {
       return res.status(400).json({ error: 'Некорректное имя файла' });
     }
 
@@ -171,8 +186,8 @@ router.delete('/delete/:filename', verifyToken, requireRole(['admin']), async (r
   try {
     const filename = req.params.filename;
 
-    // Проверяем, что filename содержит только допустимые символы
-    if (!/^backup_[\d-]+\.sql$/.test(filename)) {
+    // Проверяем, что filename содержит только допустимые символы (backup_2025-11-23T14-00-00-000Z.sql)
+    if (!/^backup_[\d\-TZ]+\.sql$/.test(filename)) {
       return res.status(400).json({ error: 'Некорректное имя файла' });
     }
 

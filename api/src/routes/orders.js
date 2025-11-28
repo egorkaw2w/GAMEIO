@@ -4,6 +4,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { validateOrderCreation, validateIdParam } = require('../middleware/validation');
+const { logAction } = require('./logs');
 
 /**
  * GET /api/orders
@@ -225,6 +226,13 @@ router.post('/', verifyToken, validateOrderCreation, async (req, res) => {
 
     await client.query('COMMIT');
 
+    // Логируем создание заказа
+    await logAction(req.user.user_id, 'ORDER_CREATE', 'Orders', null, {
+      order_id: orderId,
+      total_price: total,
+      items_count: items.length
+    });
+
     res.status(201).json({
       id: orderId,
       total_price: total,
@@ -304,6 +312,9 @@ router.patch('/:id/cancel', verifyToken, validateIdParam('id'), async (req, res)
     );
 
     await client.query('COMMIT');
+
+    // Логируем отмену заказа
+    await logAction(req.user.user_id, 'ORDER_CANCEL', 'Orders', { status: order.status }, { order_id: orderId, status: 'cancelled' });
 
     res.json({ message: 'Заказ успешно отменён', id: orderId });
   } catch (err) {
